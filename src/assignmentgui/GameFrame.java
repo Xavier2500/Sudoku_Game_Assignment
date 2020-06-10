@@ -6,6 +6,7 @@
 package assignmentgui;
 
 import java.awt.event.*;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -28,6 +29,8 @@ public class GameFrame extends JFrame implements ActionListener {
     private SudokuGrid completeGrid;
     private SudokuGrid resetGrid;
     
+    private User currentUser;
+    
     public GameFrame(SudokuDatabaseModel sudokuDB) {
         this.sudokuDB = sudokuDB;
         
@@ -40,8 +43,11 @@ public class GameFrame extends JFrame implements ActionListener {
         this.completion.setVisible(true);
         
         this.difficulty = new DifficultyPanel();
-        this.difficulty.getEasyButton().addActionListener(this);
-        this.difficulty.setSize(300, 100);
+        for (DifficultyButton currentDifficulty : this.difficulty.getChooseDifficulty()) {
+            currentDifficulty.addActionListener(this);
+        }
+        this.difficulty.getConfirmUser().addActionListener(this);
+        this.difficulty.setSize(300, 150);
         this.difficulty.setLocation(50, 50);
         this.difficulty.setVisible(true);
         
@@ -67,6 +73,10 @@ public class GameFrame extends JFrame implements ActionListener {
         this.add(this.gameGrid);
     }
     
+    /**
+     * Changes view from the user and difficulty selection view to the actual
+     * game view.
+     */
     public void diffToGrid() {
         this.difficulty.setVisible(false);
         this.createGridPanel();
@@ -75,12 +85,22 @@ public class GameFrame extends JFrame implements ActionListener {
         this.controls.setVisible(true);
     }
     
+    /**
+     * Change view from actual game view to the user and difficulty selection
+     * view.
+     */
     public void gridToDiff() {
         this.controls.setVisible(false);
         this.gameGrid.setVisible(false);
         this.difficulty.setVisible(true);
     }
     
+    /**
+     * Sets the working, complete, and reset grid of the games model, based on
+     * the requested difficulty type.
+     * 
+     * @param diff The selected difficulty type for the sudoku grid.
+     */
     public void setGrids(char diff) {
         ArrayList<String> gridValues = this.sudokuDB.requestedGrid(diff);
         
@@ -97,30 +117,39 @@ public class GameFrame extends JFrame implements ActionListener {
         
         this.diffToGrid();
     }
-
+    
     public void showCompletion() {
-//        this.completion
+        double result = this.gameGrid.checkCompletion();
+        
+        DecimalFormat df = new DecimalFormat("##.##%");
+        String completionPercentage = df.format(result);
+        
+        String completionText = ("Current completion is " + completionPercentage);
+        
+        this.completion.setText(completionText);
     }
     
     @Override
     public void actionPerformed(ActionEvent e) {
         Object source = e.getSource();
         
-        if (source == this.difficulty.getEasyButton()) {
-            this.setGrids('e');
-        } else if (source == this.difficulty.getMediumButton()) {
-            this.setGrids('m');
-        } else if (source == this.difficulty.getHardButton()) {
-            this.setGrids('h');
+        if (source instanceof DifficultyButton) {
+            this.setGrids(((DifficultyButton) source).getDifficultyType());
         } else if (source == this.controls.getUserChange()) {
-            //TODO
+            this.gridToDiff();
+            this.difficulty.confirmDataAccessibility(false);
+            this.difficulty.difficultyPanelAccessibility(true);
         } else if (source == this.controls.getDiffChange()) {
             this.gridToDiff();
+            this.difficulty.confirmDataAccessibility(false);
+            this.difficulty.difficultyPanelAccessibility(true);
         } else if (source == this.controls.getReset()) {
             this.workingGrid.resetGrid(this.resetGrid.getAllRowValues());
             this.gameGrid.updateView();
         } else if (source == this.controls.getCheckProg()) {
-            //TODO
+            this.showCompletion();
+        } else if (source == this.difficulty.getConfirmUser()) {
+            this.difficulty.checkUserInfo(this.sudokuDB);
         }
     }
 }

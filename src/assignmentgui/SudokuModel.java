@@ -18,6 +18,14 @@ public class SudokuModel {
     
     public static GameFrame game;
     
+    public static void pauseCode(long pauseTime) {
+        try {
+            Thread.sleep(pauseTime);
+        } catch (InterruptedException ex) {
+            System.out.println(ex.getMessage());
+        }
+    }
+    
     /**
      * @param args the command line arguments
      */
