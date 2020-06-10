@@ -94,6 +94,8 @@ public class GridPanel extends JPanel implements ActionListener, KeyListener{
      * accurately by the user.
      */
     public synchronized double checkCompletion() {
+        this.updateModel();
+        
         ArrayList<Integer> userGrid = this.workingGrid.getAllRowValues();
         ArrayList<Integer> systemGrid = this.completeGrid.getAllRowValues();
         ArrayList<Integer> startGrid = this.resetGrid.getAllRowValues();
@@ -135,8 +137,6 @@ public class GridPanel extends JPanel implements ActionListener, KeyListener{
         if ((numChars == 1) || !(Character.isDigit(e.getKeyChar()))) {
             e.consume();
         }
-        
-        this.updateModel();
     }
 
     @Override
