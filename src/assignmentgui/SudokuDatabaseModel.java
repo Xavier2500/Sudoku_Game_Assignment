@@ -5,10 +5,6 @@
  */
 package assignmentgui;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -18,8 +14,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Controls all database interaction. Database creation/updates/queries are done
@@ -34,185 +28,32 @@ public class SudokuDatabaseModel {
     private final String url = "jdbc:derby:SudokuDB;create=true";
     private final String dbusername = "pdc";
     private final String dbpassword = "pdc";
-
-    private String[] tableNames = new String[]{"GridDescription", "Player"};
-    private static int newGridRow = 0;
-    private String[] diffLevels = new String[]{"easy", "medium", "hard"};
+    
+    private String[] tableNames = new String[]{"PlayerGrid"};
+    
+    private PlayerTableData playerTable;
+    private GridInfoTableData gridInfoTable;
+    private PlayedGridTableData playedGridTable;
 
     public SudokuDatabaseModel() {
-        this.createTables();
-        for (String diffLevel : diffLevels) {
-            ArrayList<String> gridValues = this.loadGrids(diffLevel);
-            String[] gridList = new String[gridValues.size()];
-            gridList = gridValues.toArray(gridList);
-
-            this.generateGridInfo(diffLevel.charAt(0), gridList);
-        }
-    }
-
-    private boolean checkTableExisting(String newTableName) {
-        boolean flag = false;
-        try {
-
-            System.out.println("check existing tables.... ");
-            String[] types = {"TABLE"};
-            DatabaseMetaData dbmd = conn.getMetaData();
-            ResultSet rsDBMeta = dbmd.getTables(null, null, null, null);//types);
-            //Statement dropStatement=null;
-            while (rsDBMeta.next()) {
-                String tableName = rsDBMeta.getString("TABLE_NAME");
-                if (tableName.compareToIgnoreCase(newTableName) == 0) {
-                    System.out.println(tableName + "  is there");
-                    flag = true;
-                }
-            }
-            if (rsDBMeta != null) {
-                rsDBMeta.close();
-            }
-        } catch (SQLException ex) {
-        }
-        return flag;
-    }
-
-    /**
-     * Creates the required tables for the database.
-     */
-    public void createTables() {
         try {
             conn = DriverManager.getConnection(url, dbusername, dbpassword);
-
-            Statement statement = conn.createStatement();
-
-            for (String tableName : tableNames) {
-                String tablePK = (tableName.toLowerCase() + "_id");
-                String constraintPK = (tableName + "_" + tableName.toLowerCase() + "id_pk");
-
-                if (!checkTableExisting(tableName)) {
-                    String createTableCode = ("CREATE TABLE " + tableName + " ("
-                            + tablePK + " INT, ");
-
-                    switch (tableName) {
-                        case "GridDescription":
-                            createTableCode += "startgrid VARCHAR(161),"
-                                    + "completegrid VARCHAR(161),"
-                                    + "diffcode CHAR(1) NOT NULL";
-                            break;
-                        case "Player":
-                            createTableCode += "username VARCHAR(20) NOT NULL"
-                                    + ", password VARCHAR(16) NOT NULL";
-                            break;
-                        case "PlayerGrid":
-                            createTableCode = "CREATE TABLE " + tableName + " ("
-                                    + "player_id INT,"
-                                    + "griddescription_id INT,"
-                                    + "gridcomplete CHAR(1) NOT NULL,"
-                                    + "currentgridstate VARCHAR(161)";
-                            break;
-                    }
-
-                    if (!tableName.equalsIgnoreCase("PlayerGrid")) {
-                        createTableCode += (", CONSTRAINT " + constraintPK
-                                + " PRIMARY KEY (" + tablePK + "))");
-                    } else if (tableName.equalsIgnoreCase("PlayerGrid")) {
-                        createTableCode += (", CONSTRAINT playergrid_playerid_fk FOREIGN KEY player_id REFERENCES Player (player_id)"
-                                + ", CONSTRAINT playergrid_gridid_fk FOREIGN KEY griddescription_id REFERENCES GridDescription (griddescription_id)"
-                                + ", CONSTRAINT playergrid_playergriddescid_pk PRIMARY KEY (player_id, griddescription_id))");
-                    }
-
-                    statement.executeUpdate(createTableCode);
-                }
-
-                this.viewGrid(tableName);
-            }
-
-            statement.close();
+            
+            this.playerTable = new PlayerTableData(this.conn);
+            this.gridInfoTable = new GridInfoTableData(this.conn);
+            this.playedGridTable = new PlayedGridTableData(this.conn);
         } catch (SQLException ex) {
             System.err.println(ex.getMessage());
         }
+        
     }
 
     /**
-     * Takes in a table name as well as both starting and complete grids to be
-     * saved into their respective databases, should the table exist, and the
-     * grid has not already been entered.
-     *
-     * @param tableName
-     * @param allGrids
-     */
-    private void generateGridInfo(char diffLevel, String... allGrids) {
-        boolean isStartGrid = true;
-        String startGrid = null;
-        String completeGrid = null;
-
-        try {
-            Statement statement = conn.createStatement();
-
-            for (String currentGrid : allGrids) {
-                if (isStartGrid) {
-                    startGrid = currentGrid;
-                    isStartGrid = false;
-                } else {
-                    try {
-                        completeGrid = currentGrid;
-
-                        if (!this.compareGrids(completeGrid, diffLevel)) {
-                            SudokuDatabaseModel.newGridRow++;
-                            String sqlAddRow = "INSERT INTO GridDescription VALUES "
-                                    + "(" + SudokuDatabaseModel.newGridRow + ", '" + startGrid + "', '"
-                                    + completeGrid + "', '" + diffLevel + "')";
-
-                            System.out.println(sqlAddRow);
-
-                            statement.executeUpdate(sqlAddRow);
-                        }
-                    } catch (SQLException e) {
-                        System.err.println(e.getMessage());
-                    } finally {
-                        isStartGrid = true;
-                    }
-                }
-            }
-        } catch (SQLException ex) {
-            System.err.println(ex.getMessage());
-            //Logger.getLogger(SudokuDatabaseModel.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
-
-    /**
-     * Check to see if a given grid for a difficulty level has already been
-     * entered into the database.
-     *
-     * @param completedGrid
-     * @param diffLevel
-     * @return
-     */
-    public boolean compareGrids(String completedGrid, char diffLevel) {
-        boolean gridExists = false;
-        try {
-            Statement statement = conn.createStatement();
-            String sameGridQuery = (""
-                    + "SELECT completegrid, diffcode "
-                    + "FROM GridDescription "
-                    + "WHERE completegrid = '" + completedGrid + "' "
-                    + "AND diffcode = '" + diffLevel + "'");
-
-            ResultSet rs = statement.executeQuery(sameGridQuery);
-            while (rs.next()) {
-                gridExists = true;
-            }
-        } catch (SQLException ex) {
-            System.err.println(ex.getMessage());
-        }
-
-        return gridExists;
-    }
-
-    /**
-     * See contents of a singular grid.
+     * See contents of a table.
      *
      * @param tableName
      */
-    public void viewGrid(String tableName) {
+    public void viewTable(String tableName) {
         try {
             Statement statement = conn.createStatement();
             String query = ("SELECT * FROM " + tableName);
@@ -233,36 +74,36 @@ public class SudokuDatabaseModel {
     /**
      * Searches database for sudoku grids of the given difficulty type. Returns
      * the starting grid and finish grid for the randomly selected grid.
+     * 
+     * If the user has a save state of the grid being loaded, it adds the grid
+     * to the end of the returned list.
      *
+     * @param currentUser
      * @param diffLevel The requested sudoku difficulty level.
-     * @return Both the starting and complete grid arrays.
+     * @return Both the starting and complete grid arrays. Also a save state,
+     * where applicable.
      */
-    public ArrayList<String> requestedGrid(char diffLevel) {
+    public ArrayList<String> requestedGrid(User currentUser, char diffLevel) {
         ArrayList<String> cellValues = new ArrayList<>();
         ArrayList<Integer> idValues = new ArrayList<>();
 
         try {
             Statement statement = conn.createStatement();
-            String query = ("SELECT griddescription_id "
-                    + "FROM GridDescription "
-                    + "WHERE diffcode = '" + diffLevel + "'");
-
-            ResultSet rs = statement.executeQuery(query);
-            ResultSetMetaData rsmd = rs.getMetaData();
-            while (rs.next()) {
-                idValues.add(rs.getInt(1));
+            
+            idValues = this.gridInfoTable.queryGridDifficulties(diffLevel);
+            
+            ArrayList<Integer> completedGrids = this.checkUserGrids(currentUser);
+            
+            for (Integer completedGrid : completedGrids) {
+                for (int i = 0; i < idValues.size(); i++) {
+                    if (idValues.get(i).equals(completedGrid)) {
+                        idValues.remove(i);
+                    }
+                }
             }
-
+            
             Collections.shuffle(idValues);
-            query = ("SELECT startgrid, completegrid "
-                    + "FROM GridDescription "
-                    + "WHERE diffcode = '" + diffLevel + "'"
-                    + "AND griddescription_id = " + idValues.get(0) + "");
-            rs = statement.executeQuery(query);
-            while (rs.next()) {
-                cellValues.add(rs.getString("startgrid"));
-                cellValues.add(rs.getString("completegrid"));
-            }
+            cellValues = this.gridInfoTable.getGameGrid(idValues.get(0));
 
         } catch (SQLException e) {
             System.err.println("Error");
@@ -270,31 +111,26 @@ public class SudokuDatabaseModel {
 
         return cellValues;
     }
-
+    
     /**
-     * Read grid values from sudoku files.
-     *
-     * @param fileName
-     * @return
+     * Checks what grids a user has completed. Returns an ArrayList with the row
+     * id of each completed grid. If they haven't completed any, ArrayList is
+     * returned empty.
+     * 
+     * @param currentUser User currently operating the program.
+     * @return ArrayList containing the ID of every grid the user has completed.
      */
-    private ArrayList<String> loadGrids(String fileName) {
-        ArrayList<String> gridValues = new ArrayList<>();
-        fileName = (fileName + ".txt");
-
-        try {
-            BufferedReader br = new BufferedReader(new FileReader(fileName));
-            String nextGrid = "";
-
-            while (!((nextGrid = br.readLine()) == null)) {
-                gridValues.add(nextGrid);
-            }
-        } catch (FileNotFoundException e) {
-            System.err.println(e.getMessage());
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
+    public ArrayList<Integer> checkUserGrids(User currentUser) {
+        int userId = 0;
+        ArrayList<Integer> completedGrids = new ArrayList<>();
+        
+        userId = this.playerTable.queryPlayerId(currentUser.getUsername(), currentUser.getPassword());
+            
+        if (userId != 0) {
+            completedGrids = this.playedGridTable.completedGrids(userId);
         }
-
-        return gridValues;
+        
+        return completedGrids;
     }
 
     /**
@@ -311,34 +147,17 @@ public class SudokuDatabaseModel {
      */
     public User checkUser(String username, String password) {
         User currentUser = null;
-        boolean userExists = false;
-        boolean correctPassword = false;
-
-        try {
-            Statement statement = conn.createStatement();
-
-            String findUserSql = (""
-                    + "SELECT username, password "
-                    + "FROM Player "
-                    + "WHERE username = '" + username + "'");
-
-            ResultSet rs = statement.executeQuery(findUserSql);
-            while (rs.next()) {
-                userExists = true;
-
-                if (rs.getString("password").equals(password)) {
-                    correctPassword = true;
-                }
-            }
-
-            if (correctPassword || !userExists) {
-                currentUser = new User(username, password);
-            }
-
-        } catch (SQLException ex) {
-            System.err.println(ex.getMessage());
+        
+        String userPassword = this.playerTable.queryPlayerExists(username);
+        
+        if (userPassword == null) {
+            currentUser = new User(username, password);
+            this.playerTable.addNewPlayer(currentUser);
+        } else if (userPassword.equals(password)) {
+            int currentScore = this.playerTable.queryPlayerScore(username, password);
+            currentUser = new User(username, password, currentScore);
         }
-
+        
         return currentUser;
     }
 }

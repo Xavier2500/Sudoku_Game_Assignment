@@ -23,8 +23,6 @@ public class GameFrame extends JFrame implements ActionListener {
     
     private SudokuDatabaseModel sudokuDB;
     
-    private JLabel completion;
-    
     private SudokuGrid workingGrid;
     private SudokuGrid completeGrid;
     private SudokuGrid resetGrid;
@@ -35,12 +33,6 @@ public class GameFrame extends JFrame implements ActionListener {
         this.sudokuDB = sudokuDB;
         
         this.setLayout(null);
-        
-        this.completion  = new JLabel("Testing, testing");
-        this.completion.setSize(200, 20);
-        this.completion.setLocation(150, 450);
-        this.completion.setHorizontalAlignment(SwingConstants.CENTER);
-        this.completion.setVisible(true);
         
         this.difficulty = new DifficultyPanel();
         for (DifficultyButton currentDifficulty : this.difficulty.getChooseDifficulty()) {
@@ -56,13 +48,14 @@ public class GameFrame extends JFrame implements ActionListener {
         this.controls.getDiffChange().addActionListener(this);
         this.controls.getReset().addActionListener(this);
         this.controls.getCheckProg().addActionListener(this);
-        this.controls.setSize(800, 30);
+        this.controls.getHint().addActionListener(this);
+        this.controls.getSave().addActionListener(this);
+        this.controls.setSize(800, 50);
         this.controls.setLocation(0, 500);
         this.controls.setVisible(false);
         
         this.add(this.difficulty);
         this.add(this.controls);
-        this.add(this.completion);
     }
     
     public void createGridPanel() {
@@ -102,7 +95,12 @@ public class GameFrame extends JFrame implements ActionListener {
      * @param diff The selected difficulty type for the sudoku grid.
      */
     public void setGrids(char diff) {
-        ArrayList<String> gridValues = this.sudokuDB.requestedGrid(diff);
+        ArrayList<String> gridValues = this.sudokuDB.requestedGrid(this.currentUser, diff);
+        String saveState = null;
+        
+        if (gridValues.size() == 3) {
+            saveState = gridValues.remove(gridValues.size() - 1);
+        }
         
         for (String gridValue : gridValues) {
             ArrayList<Integer> cellValues = SudokuModel.createIntegerList(gridValue);
@@ -113,6 +111,11 @@ public class GameFrame extends JFrame implements ActionListener {
             } else {
                 this.completeGrid = new SudokuGrid(cellValues);
             }
+        }
+        
+        if (saveState != null) {
+            ArrayList<Integer> savedCellValues = SudokuModel.createIntegerList(saveState);
+            this.workingGrid = new SudokuGrid(savedCellValues);
         }
         
         this.diffToGrid();
@@ -126,7 +129,7 @@ public class GameFrame extends JFrame implements ActionListener {
         
         String completionText = ("Current completion is " + completionPercentage);
         
-        this.completion.setText(completionText);
+        this.controls.getCompletion().setText(completionText);
     }
     
     @Override
@@ -137,8 +140,8 @@ public class GameFrame extends JFrame implements ActionListener {
             this.setGrids(((DifficultyButton) source).getDifficultyType());
         } else if (source == this.controls.getUserChange()) {
             this.gridToDiff();
-            this.difficulty.confirmDataAccessibility(false);
-            this.difficulty.difficultyPanelAccessibility(true);
+            this.difficulty.confirmDataAccessibility(true);
+            this.difficulty.difficultyPanelAccessibility(false);
         } else if (source == this.controls.getDiffChange()) {
             this.gridToDiff();
             this.difficulty.confirmDataAccessibility(false);
@@ -149,7 +152,7 @@ public class GameFrame extends JFrame implements ActionListener {
         } else if (source == this.controls.getCheckProg()) {
             this.showCompletion();
         } else if (source == this.difficulty.getConfirmUser()) {
-            this.difficulty.checkUserInfo(this.sudokuDB);
+            this.currentUser = this.difficulty.checkUserInfo(this.sudokuDB);
         }
     }
 }
